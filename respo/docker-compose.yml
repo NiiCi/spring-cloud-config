@@ -1,0 +1,138 @@
+# docker-compose 安装
+#docker-compose:
+# curl -L https://github.com/docker/compose/releases/download/1.17.1/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose
+# chmod +x /usr/local/bin/docker-compose
+
+version: '3'
+
+services:
+  #tomcat
+  web:
+    restart: always
+    image: docker.io/tomcat
+    container_name: tomcat
+    ports:
+      - 8080:8080
+    volumes:
+      - /usr/local/docker/myshop/ROOT:/usr/local/tomcat/webapps/ROOT
+
+  # mysql5.7
+  mysql:
+    restart: always
+    image: docker.io/mysql:5.7
+    container_name: mysql
+    ports:
+      - 3306:3306
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: asdasdnc2.
+    volumes:
+      #- /usr/local/docker/mysql/conf:/etc/mysql
+      #- /usr/local/docker/mysql/logs:/var/log/mysql
+      - /usr/local/docker/mysql/data:/var/lib/mysql
+    command:
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_general_ci
+      --explicit_defaults_for_timestamp=true
+      --lower_case_table_names=1
+      --max_allowed_packet=128M
+      --sql-mode="STRICT_TRANS_TABLES,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO"
+
+  # mysql8
+  mysql:
+    restart: always
+    image: docker.io/mysql:latest
+    container_name: mysql
+    ports:
+      - 3306:3306
+    environment:
+      TZ: Asia/Shanghai
+      MYSQL_ROOT_PASSWORD: asdasdnc2.
+    volumes:
+      # ./data 代表当前docker-compose.yml文件所在目录的上级目录
+      - ./data:/var/lib/mysql
+      #- mysql-data:/var/lib/mysql
+    command:
+      --default-authentication-plugin=mysql_native_password
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_general_ci
+      --explicit_defaults_for_timestamp=true
+      --lower_case_table_names=1
+
+#通过 volumes 可统一管理宿主机挂载的目录 默认挂载的目录在 /var/lib/docker/volumes 下
+volumes:
+  mysql-data:
+
+  # gitlab
+  gitlab:
+    image: twang2218/gitlab-ce-zh:10.5
+    restart: always
+    container_name: docker_gitlab
+    hostname: 94.191.15.208
+    environment:
+      TZ: Asia/Shanghai
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://94.191.15.208:2884'
+        gitlab_rails['gitlab_shell_ssh_port'] = 1022
+        unicorn['port'] = 8888
+        nginx['listen_port'] = 2884
+    ports:
+      - '2884:2884'
+      - '1443:443'
+      - '1022:22'
+
+    volumes:
+      - /usr/local/docker/gitlab/config:/etc/gitlab
+      - /usr/local/docker/gitlab/data:/var/opt/gitlab
+      - /usr/local/docker/gitlab/logs:/var/log/gitlab
+
+  # nexus (maven 私服)
+  # 启动时如果出现权限问题可以使用：chmod 777 /usr/local/docker/nexus/data 赋予数据卷目录可读可写的权限
+  nexus:
+    restart: always
+    image: docker.io/sonatype/nexus3
+    container_name: nexus
+    ports:
+      - 8081:8081
+    volumes:
+      - /usr/local/docker/nexus/data:/nexus-data
+
+  # docekr-registry 私服
+  registry:
+    image: registry
+    restart: always
+    container_name: registry
+    ports:
+      - 5000:5000
+    volumes:
+      - /usr/local/docker/registry/data:/var/lib/registry
+
+  # docker-registry-webui
+  version: '3'
+  services:
+    frontweb:
+      image: konradkleine/docker-registry-frontend:v2
+      container_name: docker_registry_webui
+      ports:
+        - 8082:80
+      volumes:
+        - ./certs/frontend.crt:/etc/apache2/server.crt:ro
+        - ./certs/frontend.key:/etc/apache2/server.key:ro
+      environment:
+        - ENV_DOCKER_REGISTRY_HOST=148.70.3.235
+        - ENV_DOCKER_REGISTRY_PORT=5000
+
+  # docker-compose 安装 nginx
+  # nginx.conf 文件在 /etc/nginx/下 需要 从容器中拷贝到宿主机上 使用 docker cp
+  # docker cp docker_nginx:/etc/nginx/nginx.conf /usr/local/docker/nginx/conf/nginx.conf
+  version: '3'
+  services:
+    nginx:
+      container_name: docker_nginx
+      image: nginx
+      ports:
+        - 80:80
+        - 443:443
+      volumes:
+        - ./conf.d:/etc/nginx/conf.d
+        - ./logs:/var/log/nginx
